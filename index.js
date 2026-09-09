@@ -1,10 +1,17 @@
 const core = require("@actions/core");
+const { getOctokit } = require("@actions/github");
 const fs = require("fs");
-const path = require("path");
 const { spawn } = require("child_process");
-const { Toolkit } = require("actions-toolkit");
 
-const MAX_LINES = 5;
+// Get config
+const GH_USERNAME = core.getInput("GH_USERNAME");
+const COMMIT_NAME = core.getInput("COMMIT_NAME");
+const COMMIT_EMAIL = core.getInput("COMMIT_EMAIL");
+const COMMIT_MSG = core.getInput("COMMIT_MSG");
+const MAX_LINES = core.getInput("MAX_LINES");
+const TARGET_FILE = core.getInput("TARGET_FILE");
+const EMPTY_COMMIT_MSG = core.getInput("EMPTY_COMMIT_MSG");
+const FILTER_EVENTS = core.getInput("FILTER_EVENTS");
 
 /**
  * Returns the sentence case representation
@@ -15,22 +22,34 @@ const MAX_LINES = 5;
 
 const capitalize = (str) => str.slice(0, 1).toUpperCase() + str.slice(1);
 
-const urlPrefix = "https://github.com/";
-
 /**
  * Returns a URL in markdown format for PR's and issues
  * @param {Object | String} item - holds information concerning the issue/PR
  *
  * @returns {String}
  */
-
 const toUrlFormat = (item) => {
-  if (typeof item === "object") {
-    return Object.hasOwnProperty.call(item.payload, "issue")
-      ? `[#${item.payload.issue.number}](${urlPrefix}/${item.repo.name}/issues/${item.payload.issue.number})`
-      : `[#${item.payload.pull_request.number}](${urlPrefix}/${item.repo.name}/pull/${item.payload.pull_request.number})`;
+  if (typeof item !== "object") {
+    return `[${item}](https://github.com/${item})`;
   }
-  return `[${item}](${urlPrefix}/${item})`;
+  if (Object.hasOwnProperty.call(item.payload, "comment")) {
+    return `[#${item.payload.issue.number}](${item.payload.comment.html_url})`;
+  }
+  if (Object.hasOwnProperty.call(item.payload, "issue")) {
+    return `[#${item.payload.issue.number}](${item.payload.issue.html_url})`;
+  }
+  if (Object.hasOwnProperty.call(item.payload, "pull_request")) {
+    // GitHub Events API doesn't include html_url in pull_request object
+    // We need to construct it from repo name and PR number
+    const prNumber = item.payload.pull_request.number;
+    const repoName = item.repo.name;
+    return `[#${prNumber}](https://github.com/${repoName}/pull/${prNumber})`;
+  }
+
+  if (Object.hasOwnProperty.call(item.payload, "release")) {
+    const release = item.payload.release.name || item.payload.release.tag_name;
+    return `[${release}](${item.payload.release.html_url})`;
+  }
 };
 
 /**
@@ -43,20 +62,30 @@ const toUrlFormat = (item) => {
 
 const exec = (cmd, args = []) =>
   new Promise((resolve, reject) => {
-    const app = spawn(cmd, args, { stdio: "pipe" });
+    const app = spawn(cmd, args);
+
     let stdout = "";
-    app.stdout.on("data", (data) => {
-      stdout = data;
-    });
+    if (app.stdout) {
+      app.stdout.on("data", (data) => {
+        stdout += data.toString();
+      });
+    }
+
+    let stderr = "";
+    if (app.stderr) {
+      app.stderr.on("data", (data) => {
+        stderr += data.toString();
+      });
+    }
+
     app.on("close", (code) => {
       if (code !== 0 && !stdout.includes("nothing to commit")) {
-        err = new Error(`Invalid status code: ${code}`);
-        err.code = code;
-        return reject(err);
+        return reject(new Error(`Exit code: ${code}\n${stdout}`));
       }
-      return resolve(code);
+      return resolve(stdout);
     });
-    app.on("error", reject);
+
+    app.on("error", () => reject(new Error(`Exit code: ${code}\n${stderr}`)));
   });
 
 /**
@@ -65,117 +94,197 @@ const exec = (cmd, args = []) =>
  * @returns {Promise<void>}
  */
 
-const commitFile = async () => {
-  await exec("git", [
-    "config",
-    "--global",
-    "user.email",
-    "readme-bot@example.com",
-  ]);
-  await exec("git", ["config", "--global", "user.name", "readme-bot"]);
-  await exec("git", ["add", "README.md"]);
-  await exec("git", [
-    "commit",
-    "-m",
-    ":zap: update readme with the recent activity",
-  ]);
+const commitFile = async (emptyCommit = false) => {
+  await exec("git", ["config", "--global", "user.email", COMMIT_EMAIL]);
+  await exec("git", ["config", "--global", "user.name", COMMIT_NAME]);
+  if (emptyCommit) {
+    await exec("git", ["commit", "--allow-empty", "-m", EMPTY_COMMIT_MSG]);
+  } else {
+    await exec("git", ["add", TARGET_FILE]);
+    await exec("git", ["commit", "-m", COMMIT_MSG]);
+  }
   await exec("git", ["push"]);
+};
+
+/**
+ * Creates an empty commit if no activity has been detected for over 50 days
+ * @returns {Promise<void>}
+ * */
+const createEmptyCommit = async () => {
+  const lastCommitDate = await exec("git", [
+    "--no-pager",
+    "log",
+    "-1",
+    "--format=%ct",
+  ]);
+
+  const commitDate = new Date(parseInt(lastCommitDate, 10) * 1000);
+  const diffInDays = Math.round(
+    (new Date() - commitDate) / (1000 * 60 * 60 * 24),
+  );
+
+  core.debug(`Last commit date: ${commitDate}`);
+  core.debug(`Difference in days: ${diffInDays}`);
+
+  if (diffInDays > 50) {
+    core.info("Create empty commit to keep workflow active");
+    await commitFile(true);
+    return "Empty commit pushed";
+  }
+
+  return "No PullRequest/Issue/IssueComment/Release events found. Leaving README unchanged with previous activity";
 };
 
 const serializers = {
   IssueCommentEvent: (item) => {
     return `🗣 Commented on ${toUrlFormat(item)} in ${toUrlFormat(
-      item.repo.name
+      item.repo.name,
     )}`;
   },
   IssuesEvent: (item) => {
-    return `❗️ ${capitalize(item.payload.action)} issue ${toUrlFormat(
-      item
+    let emoji = "ℹ️";
+
+    switch (item.payload.action) {
+      case "opened":
+        emoji = "❗";
+        break;
+      case "reopened":
+        emoji = "🔓";
+        break;
+      case "closed":
+        emoji = "🔒";
+        break;
+    }
+
+    return `${emoji} ${capitalize(item.payload.action)} issue ${toUrlFormat(
+      item,
     )} in ${toUrlFormat(item.repo.name)}`;
   },
   PullRequestEvent: (item) => {
-    const emoji = item.payload.action === "opened" ? "💪" : "❌";
-    const line = item.payload.pull_request.merged
-      ? "🎉 Merged"
-      : `${emoji} ${capitalize(item.payload.action)}`;
-    return `${line} PR ${toUrlFormat(item)} in ${toUrlFormat(item.repo.name)}`;
+    let emoji = "ℹ️";
+    let actionText = capitalize(item.payload.action);
+
+    switch (item.payload.action) {
+      case "opened":
+        emoji = "💪";
+        actionText = "Opened";
+        break;
+      case "closed":
+        emoji = "❌";
+        actionText = "Closed";
+        break;
+      case "merged":
+        emoji = "🎉";
+        actionText = "Merged";
+        break;
+    }
+
+    return `${emoji} ${actionText} PR ${toUrlFormat(item)} in ${toUrlFormat(item.repo.name)}`;
+  },
+  ReleaseEvent: (item) => {
+    return `🚀 ${capitalize(item.payload.action)} release ${toUrlFormat(
+      item,
+    )} in ${toUrlFormat(item.repo.name)}`;
   },
 };
 
-Toolkit.run(
-  async (tools) => {
-    const GH_USERNAME = core.getInput("USERNAME");
+const run = async () => {
+  try {
+    const token = process.env.GITHUB_TOKEN;
+
+    if (!token) {
+      core.setFailed("GITHUB_TOKEN is required to fetch activity.");
+      return;
+    }
+
+    const octokit = getOctokit(token);
 
     // Get the user's public events
-    tools.log.debug(`Getting activity for ${GH_USERNAME}`);
-    const events = await tools.github.activity.listPublicEventsForUser({
+    core.debug(`Getting activity for ${GH_USERNAME}`);
+    const events = await octokit.rest.activity.listPublicEventsForUser({
       username: GH_USERNAME,
       per_page: 100,
     });
-    tools.log.debug(
-      `Activity for ${GH_USERNAME}, ${events.data.length} events found.`
+    core.debug(
+      `Activity for ${GH_USERNAME}, ${events.data.length} events found.`,
     );
 
     const content = events.data
       // Filter out any boring activity
-      .filter((event) => serializers.hasOwnProperty(event.type))
+      .filter(
+        (event) =>
+          serializers.hasOwnProperty(event.type) &&
+          FILTER_EVENTS.includes(event.type),
+      )
       // We only have five lines to work with
       .slice(0, MAX_LINES)
       // Call the serializer to construct a string
       .map((item) => serializers[item.type](item));
 
-    const readmeContent = fs.readFileSync("./README.md", "utf-8").split("\n");
+    const readmeContent = fs
+      .readFileSync(`./${TARGET_FILE}`, "utf-8")
+      .split("\n");
 
     // Find the index corresponding to <!--START_SECTION:activity--> comment
     let startIdx = readmeContent.findIndex(
-      (content) => content.trim() === "<!--START_SECTION:activity-->"
+      (content) => content.trim() === "<!--START_SECTION:activity-->",
     );
 
     // Early return in case the <!--START_SECTION:activity--> comment was not found
     if (startIdx === -1) {
-      return tools.exit.failure(
-        `Couldn't find the <!--START_SECTION:activity--> comment. Exiting!`
+      core.setFailed(
+        "Couldn't find the <!--START_SECTION:activity--> comment. Exiting!",
       );
+      return;
     }
 
     // Find the index corresponding to <!--END_SECTION:activity--> comment
     const endIdx = readmeContent.findIndex(
-      (content) => content.trim() === "<!--END_SECTION:activity-->"
+      (content) => content.trim() === "<!--END_SECTION:activity-->",
     );
 
-    if (!content.length) {
-      tools.exit.failure("No events found");
+    if (content.length === 0) {
+      core.info("Found no activity.");
+
+      try {
+        const message = await createEmptyCommit();
+        core.info(message);
+      } catch (err) {
+        core.setFailed(err.message);
+      }
+      return;
     }
 
     if (content.length < 5) {
-      tools.log.info("Found less than 5 activities");
+      core.info("Found less than 5 activities");
     }
 
     if (startIdx !== -1 && endIdx === -1) {
       // Add one since the content needs to be inserted just after the initial comment
       startIdx++;
       content.forEach((line, idx) =>
-        readmeContent.splice(startIdx + idx, 0, `${idx + 1}. ${line}`)
+        readmeContent.splice(startIdx + idx, 0, `${idx + 1}. ${line}`),
       );
 
       // Append <!--END_SECTION:activity--> comment
       readmeContent.splice(
         startIdx + content.length,
         0,
-        "<!--END_SECTION:activity-->"
+        "<!--END_SECTION:activity-->",
       );
 
       // Update README
-      fs.writeFileSync("./README.md", readmeContent.join("\n"));
+      fs.writeFileSync(`./${TARGET_FILE}`, readmeContent.join("\n"));
 
       // Commit to the remote repository
       try {
         await commitFile();
       } catch (err) {
-        tools.log.debug("Something went wrong");
-        return tools.exit.failure(err);
+        core.setFailed(err.message);
+        return;
       }
-      tools.exit.success("Wrote to README");
+      core.info("Wrote to README");
+      return;
     }
 
     const oldContent = readmeContent.slice(startIdx + 1, endIdx).join("\n");
@@ -183,8 +292,10 @@ Toolkit.run(
       .map((line, idx) => `${idx + 1}. ${line}`)
       .join("\n");
 
-    if (oldContent.trim() === newContent.trim())
-      tools.exit.success("No changes detected");
+    if (oldContent.trim() === newContent.trim()) {
+      core.info("No changes detected");
+      return;
+    }
 
     startIdx++;
 
@@ -198,7 +309,7 @@ Toolkit.run(
         }
         readmeContent.splice(startIdx + idx, 0, `${idx + 1}. ${line}`);
       });
-      tools.log.success("Wrote to README");
+      core.info(`Wrote to ${TARGET_FILE}`);
     } else {
       // It is likely that a newline is inserted after the <!--START_SECTION:activity--> comment (code formatter)
       let count = 0;
@@ -213,23 +324,23 @@ Toolkit.run(
           count++;
         }
       });
-      tools.log.success("Updated README with the recent activity");
+      core.info(`Updated ${TARGET_FILE} with the recent activity`);
     }
 
     // Update README
-    fs.writeFileSync("./README.md", readmeContent.join("\n"));
+    fs.writeFileSync(`./${TARGET_FILE}`, readmeContent.join("\n"));
 
     // Commit to the remote repository
     try {
       await commitFile();
     } catch (err) {
-      tools.log.debug("Something went wrong");
-      return tools.exit.failure(err);
+      core.setFailed(err.message);
+      return;
     }
-    tools.exit.success("Pushed to remote repository");
-  },
-  {
-    event: ["schedule", "workflow_dispatch"],
-    secrets: ["GITHUB_TOKEN"],
+    core.info("Pushed to remote repository");
+  } catch (error) {
+    core.setFailed(error.message);
   }
-);
+};
+
+run();
