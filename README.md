@@ -84,4 +84,11 @@ jobs:
           COMMIT_NAME: GitHub Activity Readme
 ```
 
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+
+> [!IMPORTANT]
+> This project intentionally has **no CI**. Never add GitHub Actions workflows (`.github/workflows/`) or any other CI configuration to this repository — see the [No CI policy](CONTRIBUTING.md#no-ci-policy).
+
 _Inspired by [JasonEtco/activity-box](https://github.com/JasonEtco/activity-box)_
