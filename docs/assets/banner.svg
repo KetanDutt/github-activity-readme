@@ -1,0 +1,76 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="340" viewBox="0 0 1200 340" role="img" aria-labelledby="title desc">
+  <title id="title">GitHub Activity in README</title>
+  <desc id="desc">A dark banner showing the project name, a sample activity list, and the stats: 16 event types, zero runtime dependencies, 97 KB bundle.</desc>
+
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0d1117"/>
+      <stop offset="0.55" stop-color="#101827"/>
+      <stop offset="1" stop-color="#0d1117"/>
+    </linearGradient>
+    <radialGradient id="glowA" cx="0.15" cy="0.1" r="0.7">
+      <stop offset="0" stop-color="#1f6feb" stop-opacity="0.35"/>
+      <stop offset="1" stop-color="#1f6feb" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="glowB" cx="0.9" cy="0.9" r="0.65">
+      <stop offset="0" stop-color="#a371f7" stop-opacity="0.28"/>
+      <stop offset="1" stop-color="#a371f7" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#3fb950"/>
+      <stop offset="0.55" stop-color="#58a6ff"/>
+      <stop offset="1" stop-color="#a371f7"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1200" height="340" rx="26" fill="url(#bg)"/>
+  <rect width="1200" height="340" rx="26" fill="url(#glowA)"/>
+  <rect width="1200" height="340" rx="26" fill="url(#glowB)"/>
+  <rect x="1" y="1" width="1198" height="338" rx="25" fill="none" stroke="#30363d" stroke-width="2"/>
+  <rect x="64" y="272" width="176" height="4" rx="2" fill="url(#accent)"/>
+
+  <g font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif">
+    <text x="64" y="108" fill="#e6edf3" font-size="46" font-weight="700" letter-spacing="-1">GitHub Activity in README</text>
+    <text x="64" y="146" fill="#8b949e" font-size="20">Your latest public activity, rendered as markdown and committed for you.</text>
+
+    <g transform="translate(64 182)">
+      <rect width="712" height="74" rx="12" fill="#010409" stroke="#30363d"/>
+      <circle cx="24" cy="25" r="5" fill="#3fb950"/>
+      <text x="40" y="31" fill="#c9d1d9" font-size="15" font-weight="600">Merged PR #42</text>
+      <text x="170" y="31" fill="#8b949e" font-size="14">in</text>
+      <text x="192" y="31" fill="#58a6ff" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="14">octocat/hello-world</text>
+      <text x="640" y="31" fill="#484f58" font-size="12">1</text>
+
+      <circle cx="24" cy="51" r="5" fill="#a371f7"/>
+      <text x="40" y="56" fill="#c9d1d9" font-size="15" font-weight="600">Published release v0.6.0</text>
+      <text x="240" y="56" fill="#8b949e" font-size="14">in</text>
+      <text x="262" y="56" fill="#58a6ff" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="14">octocat/hello-world</text>
+      <text x="640" y="56" fill="#484f58" font-size="12">2</text>
+    </g>
+
+    <g transform="translate(804 182)">
+      <rect width="332" height="74" rx="12" fill="#010409" stroke="#30363d"/>
+      <text x="20" y="28" fill="#3fb950" font-size="18" font-weight="700">16</text>
+      <text x="50" y="28" fill="#8b949e" font-size="13">event types</text>
+      <text x="188" y="28" fill="#58a6ff" font-size="18" font-weight="700">0</text>
+      <text x="208" y="28" fill="#8b949e" font-size="13">runtime deps</text>
+      <text x="20" y="55" fill="#e6edf3" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">~97 KB</text>
+      <text x="84" y="55" fill="#8b949e" font-size="13">bundle</text>
+      <text x="188" y="55" fill="#e6edf3" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">node24</text>
+      <text x="256" y="55" fill="#8b949e" font-size="13">runtime</text>
+    </g>
+
+    <g transform="translate(64 302)" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13" fill="#6e7681">
+      <text x="0" y="0">dry-run</text>
+      <text x="76" y="0">·</text>
+      <text x="92" y="0">job summary</text>
+      <text x="200" y="0">·</text>
+      <text x="216" y="0">rate-limit aware</text>
+      <text x="348" y="0">·</text>
+      <text x="364" y="0">formatter safe</text>
+      <text x="486" y="0">·</text>
+      <text x="502" y="0">zero dependencies</text>
+      <text x="1010" y="0" text-anchor="end" fill="#58a6ff">KetanDutt/github-activity-readme</text>
+    </g>
+  </g>
+</svg>

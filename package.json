@@ -1,20 +1,51 @@
 {
   "name": "github-activity-readme",
-  "version": "0.5.0",
-  "description": "Updates README with the recent GitHub activity of a user",
+  "version": "0.6.0",
+  "private": true,
+  "description": "Keep a README section in sync with your recent public GitHub activity.",
   "main": "index.js",
-  "keywords": [],
-  "author": "James George",
-  "license": "MIT",
+  "keywords": [
+    "github-actions",
+    "github-action",
+    "readme",
+    "activity",
+    "profile",
+    "automation"
+  ],
+  "author": "Ketan Dutt",
+  "contributors": [
+    "James George (https://github.com/jamesgeorge007)"
+  ],
+  "license": "SEE LICENSE IN LICENSE",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/KetanDutt/github-activity-readme.git"
+  },
+  "bugs": {
+    "url": "https://github.com/KetanDutt/github-activity-readme/issues"
+  },
+  "homepage": "https://github.com/KetanDutt/github-activity-readme#readme",
+  "engines": {
+    "node": ">=20"
+  },
+  "files": [
+    "action.yml",
+    "dist",
+    "docs",
+    "index.js",
+    "src",
+    "LICENSE",
+    "README.md"
+  ],
   "scripts": {
-    "format:check": "prettier --check index.js",
-    "format": "prettier --write index.js",
-    "build": "ncc build index.js -o dist"
+    "test": "node scripts/run-tests.js",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "build": "ncc build index.js -o dist",
+    "preview": "node scripts/preview.js",
+    "verify": "npm run format:check && npm test && npm run build"
   },
-  "dependencies": {
-    "@actions/core": "^2.0.1",
-    "@actions/github": "^6.0.1"
-  },
+  "dependencies": {},
   "devDependencies": {
     "@vercel/ncc": "^0.38.4",
     "prettier": "^3.7.4"
